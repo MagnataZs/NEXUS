@@ -42,6 +42,7 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -457,26 +458,68 @@ fun BottomBar(selected: Int, onSelect: (Int) -> Unit, onSettings: () -> Unit, on
 @Composable
 fun SettingsDialog(lobby: Int, onLobby: (Int) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var resetting by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxWidth(.72f).background(Panel, RoundedCornerShape(24.dp)).border(1.dp, Cyan.copy(.7f), RoundedCornerShape(24.dp)).padding(22.dp)) {
-            Text("PERSONALIZAR NEXUS ROOT", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.6.sp)
-            Text("Estilo da Lobby", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp))
-            LobbyChoice(1, "LOBBY 01", "Gaming Hub • cards de jogos", lobby == 1) { onLobby(1) }
-            Spacer(Modifier.height(10.dp))
-            LobbyChoice(2, "LOBBY 02", "Command Center • visual alternativo", lobby == 2) { onLobby(2) }
-            Spacer(Modifier.height(14.dp))
-            Text("RESOLUÇÃO GLOBAL (ROOT)", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Text("Altera a resolução do display inteiro. O valor original pode ser restaurado abaixo.", color = Muted, fontSize = 10.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                Button(onClick = { val ok = RootResolutionManager.applyGlobal(context, 1080, 2400); Toast.makeText(context, if (ok) "Comando enviado" else "Falha ROOT", Toast.LENGTH_SHORT).show() }, colors = ButtonDefaults.buttonColors(containerColor = Blue)) { Text("1080p") }
-                Button(onClick = { val ok = RootResolutionManager.applyGlobal(context, 720, 1600); Toast.makeText(context, if (ok) "Comando enviado" else "Falha ROOT", Toast.LENGTH_SHORT).show() }, colors = ButtonDefaults.buttonColors(containerColor = Blue)) { Text("720p") }
-                OutlinedButton(onClick = { val ok = RootResolutionManager.restoreGlobal(context); Toast.makeText(context, if (ok) "Resolução restaurada" else "Falha ao restaurar", Toast.LENGTH_SHORT).show() }) { Text("Restaurar") }
+        BoxWithConstraints(Modifier.fillMaxWidth(.88f)) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .heightIn(max = maxHeight * .92f)
+                    .background(Panel, RoundedCornerShape(24.dp))
+                    .border(1.dp, Cyan.copy(.7f), RoundedCornerShape(24.dp))
+                    .padding(18.dp)
+            ) {
+                Text("PERSONALIZAR NEXUS ROOT", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.6.sp)
+                Text("Configurações e recuperação", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+                Button(
+                    onClick = {
+                        if (!resetting) {
+                            resetting = true
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) { RootResolutionManager.resetToDeviceDefaults(context) }
+                                resetting = false
+                                Toast.makeText(
+                                    context,
+                                    if (ok) "Padrão do aparelho restaurado. Feche e reabra o NEXUS se a tela não atualizar." else "Falha ROOT. Autorize NEXUS no Magisk e tente novamente.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = !resetting,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C2F38), disabledContainerColor = Color(0xFF5A3840))
+                ) {
+                    Text(if (resetting) "RESTAURANDO..." else "RESTAURAR PADRÃO DO APARELHO", color = Color.White, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                }
+                Text(
+                    "Remove os overrides de tamanho e densidade da tela (wm size/density reset). Não altera os perfis visuais salvos por jogo.",
+                    color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp, bottom = 8.dp)
+                )
+                HorizontalDivider(color = Cyan.copy(.35f))
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                        .padding(top = 10.dp, bottom = 6.dp)
+                ) {
+                    Text("Estilo da Lobby", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(bottom = 12.dp))
+                    LobbyChoice(1, "LOBBY 01", "Gaming Hub • cards de jogos", lobby == 1) { onLobby(1) }
+                    Spacer(Modifier.height(10.dp))
+                    LobbyChoice(2, "LOBBY 02", "Command Center • visual alternativo", lobby == 2) { onLobby(2) }
+                    Spacer(Modifier.height(14.dp))
+                    Text("RESOLUÇÃO GLOBAL (ROOT)", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Altera o display inteiro. Prefira Restaurar padrão se a tela ficar difícil de usar.", color = Muted, fontSize = 10.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                        Button(onClick = { val ok = RootResolutionManager.applyGlobal(context, 1080, 2400); Toast.makeText(context, if (ok) "1080×2400 solicitado" else "Falha ROOT", Toast.LENGTH_SHORT).show() }, colors = ButtonDefaults.buttonColors(containerColor = Blue)) { Text("1080p") }
+                        Button(onClick = { val ok = RootResolutionManager.applyGlobal(context, 720, 1600); Toast.makeText(context, if (ok) "720×1600 solicitado" else "Falha ROOT", Toast.LENGTH_SHORT).show() }, colors = ButtonDefaults.buttonColors(containerColor = Blue)) { Text("720p") }
+                        OutlinedButton(onClick = { val ok = RootResolutionManager.restoreGlobal(context); Toast.makeText(context, if (ok) "Snapshot anterior restaurado" else "Falha ao restaurar", Toast.LENGTH_SHORT).show() }) { Text("Snapshot") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
+                        OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Permitir overlay") }
+                        OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Acesso de uso") }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onClose) { Text("FECHAR", color = Cyan) } }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Permitir overlay") }
-                OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Acesso de uso") }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onClose) { Text("FECHAR", color = Cyan) } }
         }
     }
 }

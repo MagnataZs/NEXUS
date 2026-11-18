@@ -52,6 +52,20 @@ object RootResolutionManager {
         return apply(context, width, height, temporary = false)
     }
 
+    /** Clears display overrides rather than restoring a possibly altered saved snapshot. */
+    fun resetToDeviceDefaults(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // Clear snapshots first so a stopping game-session service cannot reapply an old override.
+        val cleared = prefs.edit()
+            .remove("session_size").remove("session_density").putBoolean("session_saved", false)
+            .remove("global_size").remove("global_density").putBoolean("global_saved", false)
+            .commit()
+        if (!cleared) return false
+        context.stopService(android.content.Intent(context, GameSessionService::class.java))
+        val output = runRoot("wm size reset && wm density reset") ?: return false
+        return !output.startsWith("ERROR:")
+    }
+
     fun restoreGlobal(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean("global_saved", false)) return true
