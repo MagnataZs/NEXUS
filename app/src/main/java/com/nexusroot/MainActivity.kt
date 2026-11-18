@@ -2,6 +2,7 @@ package com.nexusroot
 
 import android.app.Activity
 import android.app.AppOpsManager
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
