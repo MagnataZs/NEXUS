@@ -3,99 +3,57 @@ package com.nexusroot
 import android.content.Context
 
 object ResolutionManager {
-    private const val PREFS = "nexus_resolution"
-    private const val KEY_GLOBAL_SIZE_CMD = "global_size_restore"
-    private const val KEY_GLOBAL_DENSITY_CMD = "global_density_restore"
-    private const val KEY_TEMP_SIZE_CMD = "temp_size_restore"
-    private const val KEY_TEMP_DENSITY_CMD = "temp_density_restore"
-    private const val KEY_TEMP_ACTIVE = "temporary_active"
+    private const val P = "display_state"
+    private const val SIZE = "restore_size"
+    private const val DENSITY = "restore_density"
+    private const val TEMP = "temporary"
 
-    private data class DisplaySnapshot(
-        val sizeLabel: String,
-        val densityLabel: String,
-        val sizeRestoreCommand: String,
-        val densityRestoreCommand: String
-    )
-
-    private fun snapshot(): DisplaySnapshot {
-        val sizeOutput = RootAccess.run("wm size").output
-        val densityOutput = RootAccess.run("wm density").output
-        val sizeOverride = sizeOutput.lineSequence().firstOrNull { it.startsWith("Override size:") }
-            ?.substringAfter(":")?.trim()
-        val physicalSize = sizeOutput.lineSequence().firstOrNull { it.startsWith("Physical size:") }
-            ?.substringAfter(":")?.trim()
-        val densityOverride = densityOutput.lineSequence().firstOrNull { it.startsWith("Override density:") }
-            ?.substringAfter(":")?.trim()
-        val physicalDensity = densityOutput.lineSequence().firstOrNull { it.startsWith("Physical density:") }
-            ?.substringAfter(":")?.trim()
-
-        return DisplaySnapshot(
-            sizeOverride ?: physicalSize ?: "indisponível",
-            densityOverride ?: physicalDensity ?: "indisponível",
-            if (sizeOverride != null) "wm size $sizeOverride" else "wm size reset",
-            if (densityOverride != null) "wm density $densityOverride" else "wm density reset"
-        )
+    private fun capture(): Pair<String, String> {
+        val s = RootAccess.run("wm size").output
+        val d = RootAccess.run("wm density").output
+        val so = s.lineSequence().firstOrNull { it.startsWith("Override size:") }?.substringAfter(":")?.trim()
+        val dover = d.lineSequence().firstOrNull { it.startsWith("Override density:") }?.substringAfter(":")?.trim()
+        return (if (so != null) "wm size $so" else "wm size reset") to
+               (if (dover != null) "wm density $dover" else "wm density reset")
     }
 
-    fun readDisplayState(context: Context): Pair<String, String> {
-        val state = snapshot()
-        return state.sizeLabel to state.densityLabel
+    fun displayText(): String {
+        val s = RootAccess.run("wm size").output.lineSequence().lastOrNull { it.contains("size:") }?.substringAfter(":")?.trim() ?: "?"
+        val d = RootAccess.run("wm density").output.lineSequence().lastOrNull { it.contains("density:") }?.substringAfter(":")?.trim() ?: "?"
+        return "$s  •  $d dpi"
     }
 
-    @Synchronized
-    fun apply(context: Context, width: Int, height: Int, temporary: Boolean): Boolean {
-        // Presets allowlisted: no arbitrary shell input is accepted.
-        val allowed = setOf(720 to 1600, 900 to 2000, 1080 to 2400)
-        if ((width to height) !in allowed) return false
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val state = snapshot()
-
+    @Synchronized fun apply(context: Context, level: Int, temporary: Boolean): Boolean {
+        val presets = mapOf(1 to (1080 to 2400), 2 to (900 to 2000), 3 to (720 to 1600), 4 to (600 to 1333), 5 to (480 to 1067))
+        val (w, h) = presets[level] ?: return false
+        val prefs = context.getSharedPreferences(P, 0)
+        val original = capture()
         if (temporary) {
-            prefs.edit()
-                .putString(KEY_TEMP_SIZE_CMD, state.sizeRestoreCommand)
-                .putString(KEY_TEMP_DENSITY_CMD, state.densityRestoreCommand)
-                .putBoolean(KEY_TEMP_ACTIVE, true)
-                .apply()
-        } else if (!prefs.contains(KEY_GLOBAL_SIZE_CMD)) {
-            prefs.edit()
-                .putString(KEY_GLOBAL_SIZE_CMD, state.sizeRestoreCommand)
-                .putString(KEY_GLOBAL_DENSITY_CMD, state.densityRestoreCommand)
-                .apply()
+            prefs.edit().putString("temp_size", original.first).putString("temp_density", original.second).putBoolean(TEMP, true).apply()
+        } else if (!prefs.contains(SIZE)) {
+            prefs.edit().putString(SIZE, original.first).putString(DENSITY, original.second).apply()
         }
-
-        val result = RootAccess.run("wm size ${width}x${height}")
-        if (!result.success && temporary) {
-            prefs.edit().remove(KEY_TEMP_SIZE_CMD).remove(KEY_TEMP_DENSITY_CMD)
-                .putBoolean(KEY_TEMP_ACTIVE, false).apply()
-        }
-        return result.success
+        val result = RootAccess.run("wm size ${w}x${h}")
+        if (!result.ok && temporary) prefs.edit().putBoolean(TEMP, false).apply()
+        return result.ok
     }
 
-    @Synchronized
-    fun restore(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val sizeCmd = prefs.getString(KEY_GLOBAL_SIZE_CMD, null) ?: "wm size reset"
-        val densityCmd = prefs.getString(KEY_GLOBAL_DENSITY_CMD, null) ?: "wm density reset"
-        val a = RootAccess.run(sizeCmd)
-        val b = RootAccess.run(densityCmd)
-        if (a.success && b.success) {
-            prefs.edit().remove(KEY_GLOBAL_SIZE_CMD).remove(KEY_GLOBAL_DENSITY_CMD).apply()
+    @Synchronized fun restoreTemporary(context: Context) {
+        val p = context.getSharedPreferences(P, 0)
+        if (!p.getBoolean(TEMP, false)) return
+        val a = RootAccess.run(p.getString("temp_size", "wm size reset") ?: "wm size reset")
+        val b = RootAccess.run(p.getString("temp_density", "wm density reset") ?: "wm density reset")
+        if (a.ok && b.ok) p.edit().remove("temp_size").remove("temp_density").putBoolean(TEMP, false).apply()
+    }
+
+    @Synchronized fun restoreGlobal(context: Context): Boolean {
+        val p = context.getSharedPreferences(P, 0)
+        val a = RootAccess.run(p.getString(SIZE, "wm size reset") ?: "wm size reset")
+        val b = RootAccess.run(p.getString(DENSITY, "wm density reset") ?: "wm density reset")
+        if (a.ok && b.ok) {
+            p.edit().remove(SIZE).remove(DENSITY).apply()
             return true
         }
         return false
-    }
-
-    @Synchronized
-    fun restoreTemporaryIfNeeded(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(KEY_TEMP_ACTIVE, false)) return
-        val sizeCmd = prefs.getString(KEY_TEMP_SIZE_CMD, "wm size reset") ?: "wm size reset"
-        val densityCmd = prefs.getString(KEY_TEMP_DENSITY_CMD, "wm density reset") ?: "wm density reset"
-        val a = RootAccess.run(sizeCmd)
-        val b = RootAccess.run(densityCmd)
-        if (a.success && b.success) {
-            prefs.edit().remove(KEY_TEMP_SIZE_CMD).remove(KEY_TEMP_DENSITY_CMD)
-                .putBoolean(KEY_TEMP_ACTIVE, false).apply()
-        }
     }
 }

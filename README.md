@@ -1,44 +1,29 @@
-# NEXUS ROOT V1 — projeto Android Kotlin
+# NEXUS ROOT V2 — interface reconstruída
 
-## Estado desta entrega
-Este é um projeto-fonte inicial avançado, não um APK já compilado. O ambiente desta conversa não possui Android SDK/Gradle para validar a compilação. O workflow do GitHub Actions incluído pode compilar o APK debug em um repositório GitHub.
+Projeto Android Kotlin para Android 8+ (minSdk 26), compileSdk 35, JDK 17.
 
-## Implementado no código
-- Lobby em paisagem com tema escuro/azul.
-- Lista de aplicativos com atividade Launcher e botão PLAY.
-- Sessão iniciada somente pelo PLAY.
-- Serviço em primeiro plano durante a sessão.
-- Monitoramento por UsageStats somente durante a sessão.
-- Overlay lateral básico com painel.
-- Verificação de acesso ROOT via `su -c`.
-- Presets de resolução via `wm size`, com snapshot e tentativa de restauração ao encerrar sessão.
+## O que esta versão contém
+- Lobby paisagem com identidade azul/preta neon e biblioteca de apps.
+- Seletor persistente Lobby 1 / Lobby 2 em Configurações.
+- Overlay de sessão com menu esquerdo, indicadores superiores, painel rápido à direita e barra inferior, seguindo as referências visuais do usuário.
+- Pixel Graphics com cinco níveis configuráveis.
+- Detecção de app em primeiro plano somente durante sessão iniciada pelo PLAY.
+- Verificação ROOT e comandos de resolução por presets.
+- Restauração temporária solicitada no encerramento da sessão.
 
-## Ainda limitado / não implementado
-- Pixel Graphics real: não há API universal para pixelizar a renderização interna de jogos.
-- Troca forçada de OpenGL/Vulkan por jogo: não é oferecida porque o Android não fornece um controle universal seguro.
-- Fast Charge: depende do kernel/controlador; não há alteração de corrente/tensão nesta versão.
-- Métricas avançadas de FPS/temperatura: pendentes.
-- A lista atual inclui apps com ícone Launcher, não classifica automaticamente somente jogos.
-- A detecção de foreground depende da permissão "Acesso ao uso" e pode variar entre ROMs.
+## Limites técnicos importantes
+- As duas opções de lobby têm a mesma estrutura funcional nesta base; o Lobby 2 é uma variação visual simples, ainda não uma reprodução gráfica independente pixel a pixel.
+- Pixel Graphics usa presets de resolução lógica do display como aproximação. Isso afeta o display inteiro, não aplica blur/filtro apenas à imagem do jogo.
+- FPS/GPU/temperatura reais ainda não estão ligados a uma fonte de telemetria; os rótulos mostram indisponível/placeholder. Não confiar em números fictícios.
+- OpenGL/Vulkan não podem ser forçados universalmente por app externo; o jogo/driver seleciona.
+- CPU/GPU governor e fast charge não são alterados nesta versão.
+- A detecção depende da permissão Acesso ao uso e de como a ROM reporta UsageEvents.
 
-## Compilar no GitHub
-1. Crie um repositório e envie todos os arquivos desta pasta.
-2. Abra Actions e execute `Build NEXUS ROOT APK` (ou faça push na branch main).
-3. Baixe o artefato `nexus-root-debug-apk`.
-4. O APK debug estará em `app-debug.apk`.
+## Compilar
+Envie a pasta para um repositório GitHub, abra Actions e execute Build NEXUS ROOT APK. Baixe o artefato `nexus-root-v2-debug`. Também pode abrir no Android Studio com JDK 17 e SDK 35 e executar `assembleDebug`.
 
-Também é possível abrir a pasta no Android Studio com JDK 17 e SDK Android 35 e executar `assembleDebug`.
+## Permissões
+Conceda Acesso ao uso e Sobrepor a outros apps. Ao chamar comandos `su`, autorize o NEXUS ROOT no Magisk.
 
-## Permissões no aparelho
-- Conceder acesso ao uso nas configurações Android.
-- Conceder permissão de sobreposição.
-- Autorizar a solicitação ROOT do Magisk quando o app executar `su`.
-
-## Atenção sobre resolução
-`wm size` altera a resolução lógica do display do Android, não necessariamente a escala de renderização interna de cada jogo. A alteração pode afetar toda a interface. Teste primeiro com cuidado e mantenha um método de restauração. O app usa presets allowlisted e tenta restaurar o snapshot, mas diferenças de ROM podem exigir ajustes.
-
-## Compatibilidade-alvo
-- minSdk 26 (Android 8.0+)
-- target/compile SDK 35
-- JDK 17
-- Magisk/root para comandos de resolução
+## Aviso de resolução
+Mudanças em `wm size` são globais e podem afetar toda a interface. Teste com cautela. A restauração automática depende do serviço permanecer ativo; após crash/reboot pode ser necessário restaurar manualmente via menu ou ADB/ROOT.
