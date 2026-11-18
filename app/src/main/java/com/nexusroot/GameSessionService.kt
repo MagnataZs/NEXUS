@@ -142,7 +142,11 @@ class GameSessionService : Service() {
                 // Resolution scaling is a display-wide approximation, not a per-game texture filter.
                 Thread {
                     ResolutionManager.apply(this, pixelLevel, true)
-                    runOnUiThread { dialog.dismiss(); toggleQuickIfOpen(); Toast.makeText(this, "Nível $pixelLevel selecionado. O efeito usa escala de resolução global.", Toast.LENGTH_LONG).show() }
+                    Handler(Looper.getMainLooper()).post {
+                        dialog.dismiss()
+                        toggleQuickIfOpen()
+                        Toast.makeText(this, "Nível $pixelLevel selecionado. O efeito usa escala de resolução global.", Toast.LENGTH_LONG).show()
+                    }
                 }.start()
             }.setNegativeButton("Cancelar", null).show()
     }
