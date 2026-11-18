@@ -10,8 +10,8 @@ android {
         applicationId = "com.nexusroot"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "4.1-pixel-profiles"
+        versionCode = 6
+        versionName = "4.2-recovery-scroll"
     }
     buildFeatures { compose = true }
     compileOptions {
